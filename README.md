@@ -18,54 +18,67 @@ make install clean
 ```
 
 ### Installation
-1. DDoS-detect uses four flow-report profiles to detect abnormal traffic (the profiles are described in a report.conf file) You can configure 'threshold's for this profiles based on your traffic activity and network device sampling options or left them default. 'key_field' - is a report field index number to which the threshold applies (you don't have to change it for predefined profiles).
+Configure some settings in the 'config.ini' file.
+1. Specify the location of the binary and NetFlow statistics files.
     ```
-    RULES = {
-        'sdport_flows': {
-                'treshold':300,
-                'key_field': 4
-                },
-        'dport_packets': {
-                'treshold':3000,
-                'key_field':3
-                },
-        'flows': {
-                'treshold':2000,
-                'key_field': 2
-                },
-        'packets':{
-                'treshold':5000,
-                'key_field': 2
-                },
-        }
+    [FILES]
+    FlowToolsBinDir = /usr/local/bin/
+    WhoisBinDir = /usr/bin/
+    FlowsDir = /var/db/flows/
     ```
+2. Configure email settings.
+    ```
+    [EMAIL]
+    SMTPServer = localhost
+    MailFrom = mail@example.com
+    MailTo = mail@example.com
+    ```   
+3. DDoS-detect uses four flow-report profiles to detect abnormal traffic (the profiles are described in a reports.cfg file by default). Configure 'threshold's for this profiles based on your traffic activity and network device sampling options or left them default. You can add/remove profiles and configure options for them in the 'REPORTS' section config.ini file.
+    ```
+    [REPORTS]
+    sdport_flows
+    dport_packets
+    flows
+    packets
 
-2. DDoS-detect uses flow-nfilter profile 'white-list' for a white list ip addresses (described in filter.cfg file).
-You can add deny terms (ip or net in a format X.X.X.X/XX) to this filter to bypass DDoS-detection for them.
+    [sdport_flows]
+    threshold = 10
+    key_field = 4
+    filter = white-list
+    
+    [dport_packets]
+    threshold = 1000
+    key_field = 3
+    filter = white-list
+    
+    [flows]
+    threshold = 1000
+    key_field = 2
+    filter = white-list
+    
+    [packets]
+    threshold = 2000
+    key_field = 2
+    filter = white-list
     ```
-    filter-primitive white-list
+- 'key_field' is a report field index number to which the threshold applies (you don't have to change it for predefined profiles).
+- 'filter' is a name of a filter described in filters.cfg file. It is used for the pre-filter flow statistic before the flow-report profile is applied. By default DDoS-detect uses 'white-list' filter for the all reports. You can add deny terms (ip or net in a format X.X.X.X/XX) to this filter to bypass DDoS-detection for them.
+    ```
+    filter-primitive white-list-ip
       type ip-address-prefix
       deny 8.8.8.8
-      deny 10.0.0.0/8
+      deny 64.233.160.0/19
       default permit
     
     filter-definition white-list
-      match ip-destination-address white-list
-      match ip-source-address white-list
+      match ip-destination-address white-list-ip
+      match ip-source-address white-list-ip
     ```
-3. Configure some dir and e-mail options
-    ```
-    # Dir with flow-tools binary files
-    BIN_DIR = '/usr/local/bin/'
-    
-    # Dir with flow-capture data
-    FLOW_DIR = '/var/flows/'
-    
-    # E-mail options
-    MAIL_FROM = 'example@domain.com'
-    MAIL_TO = 'example@domain.com'
-    ```
-4. Put script to a cron to execute it every minute
+You can create your own reports and filters. You can change the filter for each report individually.
+Use 'man flow-nfilter' and 'man flow-report' to read more about it. 
+
+
+After that put script to a cron to execute it every minute
 
 
 ## Authors
