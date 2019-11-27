@@ -1,7 +1,7 @@
 # DDoS-detect
-DDoS detection tool based on a flow-tools data.
+NetFlow data based DDoS detection tool.
 It uses flow-capture, flow-report, flow-nfilter, flow-print from flow-tools package to analyse NetFlow data and detects possible DDoS attack.
-If DDoS attack is occurred it sends e-mail with victim's ip-address.
+If DDoS attack is occurred it sends an e-mail with victim's ip-address.
 
 ### Prerequisites
 Linux or FreeBSD, Python 3.6
