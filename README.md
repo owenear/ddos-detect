@@ -42,22 +42,22 @@ Configure some settings in the 'config.ini' file.
     packets
 
     [sdport_flows]
-    threshold = 10
+    threshold = 300
     key_field = 4
     filter = white-list
     
     [dport_packets]
-    threshold = 1000
+    threshold = 3000
     key_field = 3
     filter = white-list
     
     [flows]
-    threshold = 1000
+    threshold = 1500
     key_field = 2
     filter = white-list
     
     [packets]
-    threshold = 2000
+    threshold = 5000
     key_field = 2
     filter = white-list
     ```
