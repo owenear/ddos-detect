@@ -1,13 +1,10 @@
 import os
-import sys
 import subprocess
 from datetime import datetime, timedelta
 from smtplib import SMTP_SSL, SMTP
 from configparser import ConfigParser
 import re
-import logging
 import logging.handlers
-from pprint import pprint
 
 # Load and Check Config 
 if os.path.exists(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.ini')):
@@ -43,13 +40,13 @@ try:
     # E-mail notify freq
     NOTIFY_FREQ = int(config['EMAIL']['NotifyFreq'])
 except KeyError as e:
-    print(f"ERROR: Wrong configuration in 'config.ini'!\nKey Error: {e}")
+    print(f"ERROR: Wrong configuration in 'config.ini'!: {e} Not Found")
     exit(1)
 
 # Logging configuration
 logger = logging.getLogger("mainlog")
 logger.setLevel(logging.INFO)
-fh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=LOG_FILE_SIZE,backupCount=5)
+fh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=LOG_FILE_SIZE, backupCount=5)
 fh.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
 logger.addHandler(fh)
 
@@ -75,7 +72,7 @@ def whois_net(ip):
     try:
         whois = subprocess.run([os.path.join(config['FILES']['SysBinDir'], 'whois'), ip], stdout=subprocess.PIPE)
     except Exception as e:
-        log(f"While runing shell 'whois': {e}", level = 3)
+        log(f"While runing shell 'whois': {e}", level=3)
     else:
         netname = re.findall(r'(?:[nN]et|[Oo]rg)-?[Nn]ame: +(.+)', whois.stdout.decode(CODE))
         if netname:
@@ -90,14 +87,14 @@ def send_mail(msg, ip_set):
         else:
             server = SMTP(config['EMAIL']['SMTPServer'], int(config['EMAIL']['SMTPPort']))
     except Exception as e:
-        log(f"While connecting to SMTP server: {e}", level = 3)
+        log(f"While connecting to SMTP server: {e}", level=3)
     else:
         server.set_debuglevel(0)
         if config['EMAIL']['Auth'].lower() == 'true':
             try:
                 server.login(config['EMAIL-AUTH']['Login'], config['EMAIL-AUTH']['Password'])
             except Exception as e:
-                log(f"While login to SMTP Server: {e}", level = 3)
+                log(f"While login to SMTP Server: {e}", level=3)
         headers = (f"From: {config['EMAIL']['MailFrom']}\n"
                    f"To: {config['EMAIL']['MailTo']}\n"
                    f"Subject:{config['EMAIL']['Subject']} dIP: {', '.join(ip_set)}\n"
@@ -106,7 +103,7 @@ def send_mail(msg, ip_set):
         try:
             server.sendmail(f"{config['EMAIL']['MailFrom']}", f"{config['EMAIL']['MailTo']}", headers + msg)
         except Exception as e:
-            log(f"While sending e-mail: {e}", level = 3)
+            log(f"While sending e-mail: {e}", level=3)
         else:
             log(f"DDoS E-mail sent to {config['EMAIL']['MailTo']}")
         server.quit()
@@ -141,7 +138,6 @@ def main():
     t_end = (datetime.now() - timedelta(minutes=1)).strftime('%m/%d/%Y %H:%M')
     ip_set = set()
     reports_output = {}
-    flow_print = ''
     for report, options in REPORTS.items():
         command = (f"{FLOW_CAT} -t '{t_start}' -T '{t_end}' {FLOWS_DIR}* | " 
                    f"{FLOW_NFILTER} -f {FILTER_FILE} -F {options['filter']} | "
@@ -167,20 +163,20 @@ def main():
                             f"{FLOW_PRINT} -f5 -p -w | " 
                             f"{AWK} '{awk_query}' |tail -n {FLOW_PRINT_TAIL}")
                 result = subprocess.run([command],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+                flow_print = ''
                 if result.stderr:
                     log(f"Return:{result.stderr}  Command: '{command}'", level = 3)
-                    flow_print = '---error---'
                 else:
                     flow_print = result.stdout.decode(CODE)
                 send_mail(format_msg(reports_output, ip_set, flow_print), ip_set)
             notify_counter += 1
             log(f"DDoS dIP:{', '.join(ip_set)}", notify_counter)
-            log("Notification counter changed", notify_counter = 0) if notify_counter >= NOTIFY_FREQ else True
+            log("Notification counter changed", notify_counter=0) if notify_counter >= NOTIFY_FREQ else True
         else:
-            log(f"DDoS dIP:{', '.join(ip_set)}; Printed to STDOUT", notify_counter = 0)
+            log(f"DDoS dIP:{', '.join(ip_set)}; Printed to STDOUT", notify_counter=0)
             print('\n'.join(ip_set))
     else:
-        log("Notification counter changed", notify_counter = 0) if log() != 0 else True
+        log("Notification counter changed", notify_counter=0) if log() != 0 else True
 
 
 if __name__ == '__main__':
