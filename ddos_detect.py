@@ -166,9 +166,9 @@ def main():
             if notify_counter == 0:
                 awk_query = '$7=="' + '" || $7=="'.join(ip_set) + '"'
                 command = (f"{FLOW_CAT}  {flows_file}* | "
-                            f"{FLOW_PRINT} -f5 -p -w | " 
-                            f"{AWK} '{awk_query}' |tail -n {FLOW_PRINT_TAIL}")
-                result = subprocess.run([command],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+                           f"{FLOW_PRINT} -f5 -p -w | " 
+                           f"{AWK} '{awk_query}' |tail -n {FLOW_PRINT_TAIL}")
+                result = subprocess.run([command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                 flow_print = ''
                 if result.stderr:
                     log(f"Return:{result.stderr}  Command: '{command}'", level = 3)

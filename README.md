@@ -6,8 +6,30 @@ If DDoS attack is occurred it sends an e-mail with victim's ip-address.
 ### Prerequisites
 Linux or FreeBSD, Python 3.6
 
-1. Configure NetFlow v5/v8 on a network device.
-2. Install and configure flow-tools on a server.
+1. Configure NetFlow v5/v8 on a network device with active timeout 60 sec.
+```
+forwarding-options {
+    sampling {
+        input {
+            rate 2000;
+            run-length 0;
+        }
+        family inet {
+            output {
+                flow-inactive-timeout 15;
+                flow-active-timeout 60; 
+                flow-server 10.0.0.10 {
+                    port 9999;
+                    autonomous-system-type origin;
+                    source-address 10.0.0.1;
+                    version 5;
+                }
+            }
+        }
+    }
+}
+```
+2. Install flow-tools on a server.
 ```
 apt-get install flow-tools
 ```
@@ -16,14 +38,25 @@ or
 cd /usr/ports/net-mgmt/flow-tools
 make install clean
 ```
-
+And configure it to start with parameter -n (rotations) equals 1439 (the number of times flow-capture will create a new
+file per day. That is, every minute)
+Example of FreeBSD rc.conf:
+```
+flow_capture_enable="YES"
+flow_capture_localip="10.0.0.10" 
+flow_capture_remoteip="10.0.0.1" 
+flow_capture_port="9999" 
+flow_capture_datadir="/var/db/flows" 
+flow_capture_flags="-z0 -n1439 -N3 -E10G -e0 -S1"
+```
+Use 'man flow-capture' to read more about it. 
 ### Installation
 Configure some settings in the 'config.ini' file.
 1. Specify the location of the binary and NetFlow statistics files.
     ```
     [FILES]
     FlowToolsBinDir = /usr/local/bin/
-    WhoisBinDir = /usr/bin/
+    SysBinDir = /usr/bin/
     FlowsDir = /var/db/flows/
     ```
 2. Configure email settings.
