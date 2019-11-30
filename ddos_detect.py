@@ -107,17 +107,40 @@ def send_mail(msg, ip_set):
         except Exception as e:
             log(f"While sending e-mail: {e}", level = 3)
         else:
-            log(f"DDoS E-mail send to {config['EMAIL']['MailTo']}")
+            log(f"DDoS E-mail sent to {config['EMAIL']['MailTo']}")
         server.quit()
+
+
+def format_msg(reports_output, ip_set, flow_print):
+    email_msg = ''
+    for report, output in reports_output.items():
+        email_msg += (f"\nTRIGGERED RULE: '{report}' with a THRESHOLD: " 
+                      f"{REPORTS[report]['threshold']} {output['head'].split(',')[-1]}:\n\n")
+        email_msg += ''.join(f"{s.replace('*', '').lower():<25}" for s in output['head'].split(','))
+        if config['SYSTEM']['Whois'].lower() == 'true':
+            email_msg += f"{'netname, orgname':<25}"
+        email_msg += "\n" + "-"*120 + "\n"
+        for ip, values in output['list']:
+            email_msg += f"{ip.strip():<25}" + ''.join(f"{s:<25}" for s in values.split(',') if s)
+            if  config['SYSTEM']['Whois'].lower() == 'true':
+                email_msg += f"{whois_net(ip):<25}"
+            email_msg += "\n"
+    email_msg += "\n"
+    email_msg += f"\nFlow report (last {FLOW_PRINT_TAIL} flows to dIP: {', '.join(ip_set)}):\n\n"
+    email_msg += ("Start             End               Sif   SrcIPaddress    SrcP  DIf   "
+                  "DstIPaddress    DstP  P   Fl Pkts       Octets")
+    email_msg += "\n" + "-"*120 + "\n"
+    email_msg += flow_print
+    return email_msg
 
 
 def main():
     notify_counter = log()
     t_start = (datetime.now() - timedelta(minutes=2)).strftime('%m/%d/%Y %H:%M')
-    t_end = (datetime.now() - timedelta(minutes=1)).strftime('%m/%d/%Y %H:%M') 
-    email_msg = ''
+    t_end = (datetime.now() - timedelta(minutes=1)).strftime('%m/%d/%Y %H:%M')
     ip_set = set()
     reports_output = {}
+    flow_print = ''
     for report, options in REPORTS.items():
         command = (f"{FLOW_CAT} -t '{t_start}' -T '{t_end}' {FLOWS_DIR}* | " 
                    f"{FLOW_NFILTER} -f {FILTER_FILE} -F {options['filter']} | "
@@ -133,44 +156,31 @@ def main():
                 reports_output[report] = {}
                 reports_output[report]['head'] = report_head
                 reports_output[report]['list'] = report_list
-                email_msg += (f"\nTRIGGERED RULE: '{report}' with a THRESHOLD: " 
-                              f"{options['threshold']} {report_head.split(',')[-1]}:\n\n")
-                email_msg += ''.join(f"{s.replace('*', '').lower():<25}" for s in report_head.split(','))
-                if config['SYSTEM']['Whois'].lower() == 'true' and NOTIFY_FREQ > 0:
-                    email_msg += f"{'netname, orgname':<25}"
-                email_msg += "\n" + "-"*120 + "\n"
-                for ip, values in report_list:
+                for ip, _ in report_list:
                     ip_set.add(ip)
-                    email_msg += f"{ip.strip():<25}" + ''.join(f"{s:<25}" for s in values.split(',') if s)
-                    if  config['SYSTEM']['Whois'].lower() == 'true' and NOTIFY_FREQ > 0:
-                        email_msg += f"{whois_net(ip):<25}"
-                    email_msg += "\n"
-                email_msg += "\n"
-    if email_msg:
+    if reports_output:
         if NOTIFY_FREQ > 0:
             if notify_counter == 0:
                 awk_query = '$7=="' + '" || $7=="'.join(ip_set) + '"'
                 command = (f"{FLOW_CAT} -t '{t_start}' -T '{t_end}' {FLOWS_DIR}* | "
-                           f"{FLOW_PRINT} -f5 -p -w | " 
-                           f"{AWK} '{awk_query}' |tail -n {FLOW_PRINT_TAIL}")
+                            f"{FLOW_PRINT} -f5 -p -w | " 
+                            f"{AWK} '{awk_query}' |tail -n {FLOW_PRINT_TAIL}")
                 result = subprocess.run([command],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
                 if result.stderr:
                     log(f"Return:{result.stderr}  Command: '{command}'", level = 3)
+                    flow_print = '---error---'
                 else:
-                    email_msg += f"\nFlow report (last {FLOW_PRINT_TAIL} flows to dIP: {', '.join(ip_set)}):\n\n"
-                    email_msg += ("Start             End               Sif   SrcIPaddress    SrcP  DIf   "
-                                  "DstIPaddress    DstP  P   Fl Pkts       Octets")
-                    email_msg += "\n" + "-"*120 + "\n"
-                    email_msg += result.stdout.decode(CODE)
-                    send_mail(email_msg, ip_set)
+                    flow_print = result.stdout.decode(CODE)
+                send_mail(format_msg(reports_output, ip_set, flow_print), ip_set)
             notify_counter += 1
             log(f"DDoS dIP:{', '.join(ip_set)}", notify_counter)
             log("Notification counter changed", notify_counter = 0) if notify_counter >= NOTIFY_FREQ else True
         else:
-            log(f"DDoS dIP:{', '.join(ip_set)}; Printed to STDOUT", notify_counter = 0)    
+            log(f"DDoS dIP:{', '.join(ip_set)}; Printed to STDOUT", notify_counter = 0)
             print('\n'.join(ip_set))
     else:
         log("Notification counter changed", notify_counter = 0) if log() != 0 else True
+
 
 if __name__ == '__main__':
     main()
