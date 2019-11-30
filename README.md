@@ -6,7 +6,7 @@ If DDoS attack is occurred it sends an e-mail with victim's ip-address.
 ### Prerequisites
 Linux or FreeBSD, Python 3.6
 
-1. Configure NetFlow v5/v8 on a network device with active timeout 60 sec.
+1. Configure NetFlow v5 on a network device with active timeout 60 sec.
 ```
 forwarding-options {
     sampling {
