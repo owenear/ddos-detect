@@ -19,6 +19,7 @@ else:
 
 try:
     LOG_FILE = os.path.join(config['SYSTEM']['LogDir'], 'ddos-detect.log')
+    LOG_FILE_SIZE = int(config['SYSTEM']['LogFileSize'])
     CODE = config['SYSTEM']['code']
     # AWK
     AWK = os.path.join(config['FILES']['SysBinDir'], 'awk')
@@ -48,7 +49,7 @@ except KeyError as e:
 # Logging configuration
 logger = logging.getLogger("mainlog")
 logger.setLevel(logging.INFO)
-fh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=50000,backupCount=5)
+fh = logging.handlers.RotatingFileHandler(LOG_FILE, maxBytes=LOG_FILE_SIZE,backupCount=5)
 fh.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
 logger.addHandler(fh)
 
