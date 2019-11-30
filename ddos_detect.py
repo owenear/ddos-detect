@@ -134,8 +134,9 @@ def format_msg(reports_output, ip_set, flow_print):
 
 def main():
     notify_counter = log()
-    t_start = (datetime.now() - timedelta(minutes=2)).strftime('%m/%d/%Y %H:%M')
-    t_end = (datetime.now() - timedelta(minutes=1)).strftime('%m/%d/%Y %H:%M')
+    time = datetime.now()
+    t_start = (time - timedelta(minutes=2)).strftime('%m/%d/%Y %H:%M')
+    t_end = (time - timedelta(minutes=1)).strftime('%m/%d/%Y %H:%M')
     ip_set = set()
     reports_output = {}
     for report, options in REPORTS.items():
