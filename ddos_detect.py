@@ -5,6 +5,8 @@ from smtplib import SMTP_SSL, SMTP
 from configparser import ConfigParser
 import re
 import logging.handlers
+from pathlib import Path
+from glob import glob
 
 # Load and Check Config 
 if os.path.exists(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.ini')):
@@ -134,33 +136,36 @@ def format_msg(reports_output, ip_set, flow_print):
 
 def main():
     notify_counter = log()
-    time = datetime.now()
-    t_start = (time - timedelta(minutes=2)).strftime('%m/%d/%Y %H:%M')
-    t_end = (time - timedelta(minutes=1)).strftime('%m/%d/%Y %H:%M')
+    date = (datetime.now() - timedelta(minutes=2)).strftime('%Y-%m-%d.%H%M')
+    try:
+        flows_file = next(Path(FLOWS_DIR).rglob(f'*{date}*'))
+    except StopIteration:
+        log(f"Can not find flow-capture file for the date: {date}", level=3)
+        exit(1)
     ip_set = set()
     reports_output = {}
     for report, options in REPORTS.items():
-        command = (f"{FLOW_CAT} -t '{t_start}' -T '{t_end}' {FLOWS_DIR}* | " 
+        command = (f"{FLOW_CAT}  {flows_file}* | " 
                    f"{FLOW_NFILTER} -f {FILTER_FILE} -F {options['filter']} | "
                    f"{FLOW_REPORT} -s {REPORT_FILE} -S {report} | "
                    f"{AWK} -F, '${options['key_field']} > int({options['threshold']})'")
         result = subprocess.run([command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         if result.stderr:
-            log(f"Return: {result.stderr} Command: '{command}'", level = 3)
-        else:
-            report_head = re.search(r'^# recn: (.*)', result.stdout.decode('utf-8')).group(1)
-            report_list = re.findall(r'(\d+\.\d+\.\d+\.\d+)([,\w]+)', result.stdout.decode(CODE))
-            if report_list:
-                reports_output[report] = {}
-                reports_output[report]['head'] = report_head
-                reports_output[report]['list'] = report_list
-                for ip, _ in report_list:
-                    ip_set.add(ip)
+            log(f"Return: {result.stderr} Command: '{command}'", level=3)
+            exit(1)
+        report_head = re.search(r'^# recn: (.*)', result.stdout.decode('utf-8')).group(1)
+        report_list = re.findall(r'(\d+\.\d+\.\d+\.\d+)([,\w]+)', result.stdout.decode(CODE))
+        if report_list:
+            reports_output[report] = {}
+            reports_output[report]['head'] = report_head
+            reports_output[report]['list'] = report_list
+            for ip, _ in report_list:
+                ip_set.add(ip)
     if reports_output:
         if NOTIFY_FREQ > 0:
             if notify_counter == 0:
                 awk_query = '$7=="' + '" || $7=="'.join(ip_set) + '"'
-                command = (f"{FLOW_CAT} -t '{t_start}' -T '{t_end}' {FLOWS_DIR}* | "
+                command = (f"{FLOW_CAT}  {flows_file}* | "
                             f"{FLOW_PRINT} -f5 -p -w | " 
                             f"{AWK} '{awk_query}' |tail -n {FLOW_PRINT_TAIL}")
                 result = subprocess.run([command],stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
