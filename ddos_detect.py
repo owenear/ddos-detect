@@ -6,7 +6,7 @@ from configparser import ConfigParser
 import re
 import logging.handlers
 from pathlib import Path
-from glob import glob
+
 
 # Load and Check Config 
 if os.path.exists(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'config.ini')):
