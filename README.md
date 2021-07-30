@@ -46,43 +46,43 @@ LogFileSize = 50000
 ```
 Create the log file 'LogDir'/ddos-detect.log and be sure it's writable by the user that’s running the DDoS-detect.
 2. Specify the location of the binary and NetFlow statistics files.
-    ```
-    [FILES]
-    NfdumpBinDir = /usr/local/bin/
-    SysBinDir = /usr/bin/
-    FlowsDir = /var/db/flows/
-    ```
+```
+[FILES]
+NfdumpBinDir = /usr/local/bin/
+SysBinDir = /usr/bin/
+FlowsDir = /var/db/flows/
+```
 3. Configure email settings.
-    ```
-    [EMAIL]
-    SMTPServer = localhost
-    MailFrom = mail@example.com
-    MailTo = mail@example.com
-    ```   
+```
+[EMAIL]
+SMTPServer = localhost
+MailFrom = mail@example.com
+MailTo = mail@example.com
+```   
 4. DDoS-detect uses four report profiles to detect abnormal traffic. Configure 'threshold's for this profiles based on your traffic activity and network device sampling options or left them default. You can change set of the current working profiles and configure options for them in the 'REPORTS' section config.ini file.
-    ```
-    [REPORTS]
-    sdport_flows
-    dport_packets
-    flows
-    packets
+```
+[REPORTS]
+sdport_flows
+dport_packets
+flows
+packets
 
-    [sdport_flows]
-    threshold = 300
-    key_field = 4
+[sdport_flows]
+threshold = 300
+key_field = 4
     
-    [dport_packets]
-    threshold = 3000
-    key_field = 3
+[dport_packets]
+threshold = 3000
+key_field = 3
     
-    [flows]
-    threshold = 1500
-    key_field = 2
+[flows]
+threshold = 1500
+key_field = 2
     
-    [packets]
-    threshold = 5000
-    key_field = 2
-    ```
+[packets]
+threshold = 5000
+key_field = 2
+```
 - 'key_field' is a report field index number to which the threshold applies (you don't have to change it).
 5. Check the IP WhiteList ACL filename
 ```
