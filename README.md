@@ -45,6 +45,7 @@ LogDir = /var/log/
 LogFileSize = 50000
 ```
 Create the log file 'LogDir'/ddos-detect.log and be sure it's writable by the user that’s running the DDoS-detect.
+
 2. Specify the location of the binary and NetFlow statistics files.
 ```
 [FILES]
