@@ -4,8 +4,9 @@ It uses nfdump package to analyse NetFlow data and detects possible DDoS attack.
 If DDoS attack is occurred it sends an e-mail with victim's ip-address.
 
 ### Prerequisites
-Linux or FreeBSD, Python > 3.6
-NFDUMP
+- Linux or FreeBSD, 
+- Python > 3.6,
+- NFDump
 
 1. Configure NetFlow (v5/v9/ipfix) on a network device with active timeout 60 sec (see the v5 version JunOS config example below).
 ```
