@@ -28,19 +28,14 @@ try:
         REPORTS.update({key:{}})
         REPORTS[key].update({'threshold': int(config[key]['threshold'])})
         REPORTS[key].update({'key_field': int(config[key]['key_field'])})
-        REPORTS[key].update({'filter': config[key]['filter']})
 
-    # FlowTools options
-    FLOW_CAT = os.path.join(config['FILES']['FlowToolsBinDir'], 'flow-cat')
-    FLOW_NFILTER = os.path.join(config['FILES']['FlowToolsBinDir'], 'flow-nfilter')
-    FLOW_REPORT = os.path.join(config['FILES']['FlowToolsBinDir'], 'flow-report')
-    FLOW_PRINT = os.path.join(config['FILES']['FlowToolsBinDir'], 'flow-print')
-    FLOW_PRINT_TAIL = config['EMAIL']['FlowPrintTail']
+    NFDUMP = os.path.join(config['FILES']['NfdumpBinDir'], 'nfdump')
     FLOWS_DIR = config['FILES']['FlowsDir']
-    REPORT_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), config['FILES']['ReportsFileName'])
-    FILTER_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), config['FILES']['FiltersFileName'])
+    FLOW_REC_AMOUNT = config['EMAIL']['FlowRecAmount']
+    IP_WHITE_LIST_FILE = os.path.join(os.path.abspath(os.path.dirname(__file__)), config['FILES']['IpWhiteListFile'])
+    
     # E-mail notify freq
-    NOTIFY_FREQ = int(config['EMAIL']['NotifyFreq'])
+    NOTIFY_FREQ = int(config['EMAIL']['NotifyFreq'])    
 except KeyError as e:
     print(f"ERROR: Wrong configuration in 'config.ini'!: {e} Not Found")
     exit(1)
@@ -103,7 +98,7 @@ def send_mail(msg, ip_set):
                    "MIME-Version: 1.0\n"
                    f"Content-Type: text/plain; charset=\"{CODE}\"\n")
         try:
-            server.sendmail(f"{config['EMAIL']['MailFrom']}", f"{config['EMAIL']['MailTo']}", headers + msg)
+            server.sendmail(f"{config['EMAIL']['MailFrom']}", [ f"{config['EMAIL']['MailTo']}" ], headers + msg)
         except Exception as e:
             log(f"While sending e-mail: {e}", level=3)
         else:
@@ -121,60 +116,86 @@ def format_msg(reports_output, ip_set, flow_print):
             email_msg += f"{'netname, orgname':<25}"
         email_msg += "\n" + "-"*120 + "\n"
         for ip, values in output['list']:
-            email_msg += f"{ip.strip():<25}" + ''.join(f"{s:<25}" for s in values.split(',') if s)
+            email_msg += f"{ip.strip():<25}" + ''.join(f"{s.strip():<25}" for s in values.split(',') if s)
             if  config['SYSTEM']['Whois'].lower() == 'true':
                 email_msg += f"{whois_net(ip):<25}"
             email_msg += "\n"
     email_msg += "\n"
-    email_msg += f"\nFlow report (last {FLOW_PRINT_TAIL} flows to dIP: {', '.join(ip_set)}):\n\n"
-    email_msg += ("Start             End               Sif   SrcIPaddress    SrcP  DIf   "
-                  "DstIPaddress    DstP  P   Fl Pkts       Octets")
+    email_msg += f"\nFlow report (last {FLOW_REC_AMOUNT} flows to dIP: {', '.join(ip_set)}):\n\n"
+    email_msg += (  f"{'Start':<24}{'End':<27}{'Sif':<6}{'SrcIPaddress':<16}{'SrcP':<9}"
+                    f"{'DIf':<7}{'DstIPaddress':<16}{'DstP':<7}{'Prot':<7}{'Flows':<7}{'Pkts':<7}{'Octets':<7}" )
     email_msg += "\n" + "-"*120 + "\n"
     email_msg += flow_print
     return email_msg
 
 
-def main():
-    notify_counter = log()
-    date = (datetime.now() - timedelta(minutes=2)).strftime('%Y-%m-%d.%H%M')
-    try:
-        flows_file = next(Path(FLOWS_DIR).rglob(f'*{date}*'))
-    except StopIteration:
-        log(f"Can not find flow-capture file for the date: {date}", level=3)
-        exit(1)
+def create_white_filter():
+    with open(IP_WHITE_LIST_FILE, 'r', encoding=CODE) as f:
+        ip_list = re.findall(r'^\s*(\d+\.\d+\.\d+\.\d+)\/?(\d+)?', f.read(), flags=re.MULTILINE)
+    filter_string = ''
+    if ip_list:
+        for ip, prefix in ip_list:
+            filter_string += f"not net {ip}/{prefix} and " if prefix else f"not host {ip} and "
+        filter_string = filter_string[:-4]
+    return filter_string
+
+
+def ddos_check(flows_file):
+    NFDUMP_REPORTS = {
+        'sdport_flows' : { 'aggr' : 'dstip,srcport,dstport' , 'format' : 'fmt:%da,%sp,%dp,%fl', 'order' : 'flows' }, 
+        'dport_packets' : { 'aggr' : 'dstip,dstport' , 'format' : 'fmt:%da,%dp,%pkt', 'order' : 'packets'},
+        'flows' : { 'aggr' : 'dstip' , 'format' : 'fmt:%da,%fl',  'order' : 'flows'},
+        'packets' : { 'aggr' : 'dstip' , 'format' : 'fmt:%da,%pkt', 'order' : 'packets' }
+    }
     ip_set = set()
     reports_output = {}
     for report, options in REPORTS.items():
-        command = (f"{FLOW_CAT}  {flows_file}* | " 
-                   f"{FLOW_NFILTER} -f {FILTER_FILE} -F {options['filter']} | "
-                   f"{FLOW_REPORT} -s {REPORT_FILE} -S {report} | "
-                   f"{AWK} -F, '${options['key_field']} > int({options['threshold']})'")
+        command = ( f"{NFDUMP}  -r {flows_file} -A {NFDUMP_REPORTS[report]['aggr']} "
+                    f"-O {NFDUMP_REPORTS[report]['order']} -N -q -o '{NFDUMP_REPORTS[report]['format']}' '{create_white_filter()}'| "
+                    f"{AWK} -F, '${options['key_field']} > int({options['threshold']})'")
         result = subprocess.run([command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         if result.stderr:
             log(f"Return: {result.stderr} Command: '{command}'", level=3)
             exit(1)
-        report_head = re.search(r'^# recn: (.*)', result.stdout.decode('utf-8')).group(1)
-        report_list = re.findall(r'(\d+\.\d+\.\d+\.\d+)([,\w]+)', result.stdout.decode(CODE))
+        report_head = f"{NFDUMP_REPORTS[report]['aggr']},{NFDUMP_REPORTS[report]['order']}" 
+        report_list = re.findall(r'\s*(\d+\.\d+\.\d+\.\d+)(.*)', result.stdout.decode(CODE))
         if report_list:
             reports_output[report] = {}
             reports_output[report]['head'] = report_head
             reports_output[report]['list'] = report_list
             for ip, _ in report_list:
                 ip_set.add(ip)
+    return (reports_output, ip_set)
+
+
+def flows_print(ip_set, flows_file):
+    filter_ip = ''
+    for ip in ip_set:
+        filter_ip += f"host {ip} or " 
+    command = ( f"{NFDUMP} -r {flows_file} -N -q -o 'fmt:%ts,%te,%in,%sa,%sp,%out,%da,%dp,%pr,%fl,%pkt,%byt' '{filter_ip[:-3]}' | "
+                f" tail -n {FLOW_REC_AMOUNT}")
+    result = subprocess.run([command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    if result.stderr:
+        log(f"Return:{result.stderr}  Command: '{command}'", level = 3)
+        exit(1)
+    else:
+        return result.stdout.decode(CODE)
+
+
+def main():
+    notify_counter = log()
+    date = (datetime.now() - timedelta(minutes=2)).strftime('%Y%m%d%H%M')
+    try:
+        flows_file = next(Path(FLOWS_DIR).rglob(f'*{date}*'))
+    except StopIteration:
+        log(f"Can not find flow-capture file for the date: {date}", level=3)
+        exit(1)
+    reports_output, ip_set = ddos_check(flows_file)
     if reports_output:
         if NOTIFY_FREQ > 0:
             if notify_counter == 0:
-                awk_query = '$7=="' + '" || $7=="'.join(ip_set) + '"'
-                command = (f"{FLOW_CAT}  {flows_file}* | "
-                           f"{FLOW_PRINT} -f5 -p -w | " 
-                           f"{AWK} '{awk_query}' |tail -n {FLOW_PRINT_TAIL}")
-                result = subprocess.run([command], stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-                flow_print = ''
-                if result.stderr:
-                    log(f"Return:{result.stderr}  Command: '{command}'", level = 3)
-                else:
-                    flow_print = result.stdout.decode(CODE)
-                send_mail(format_msg(reports_output, ip_set, flow_print), ip_set)
+                email_msg = format_msg(reports_output, ip_set, flows_print(ip_set, flows_file))
+                send_mail(email_msg, ip_set)
             notify_counter += 1
             log(f"DDoS dIP:{', '.join(ip_set)}", notify_counter)
             log("Notification counter changed", notify_counter=0) if notify_counter >= NOTIFY_FREQ else True

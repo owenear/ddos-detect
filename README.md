@@ -1,12 +1,13 @@
 # DDoS-detect
 NetFlow data based DDoS detection tool.
-It uses flow-capture, flow-report, flow-nfilter, flow-print from flow-tools package to analyse NetFlow data and detects possible DDoS attack.
+It uses nfdump package to analyse NetFlow data and detects possible DDoS attack.
 If DDoS attack is occurred it sends an e-mail with victim's ip-address.
 
 ### Prerequisites
-Linux or FreeBSD, Python 3.6
+Linux or FreeBSD, Python > 3.6
+NFDUMP
 
-1. Configure NetFlow v5 on a network device with active timeout 60 sec.
+1. Configure NetFlow (v5/v9/ipfix) on a network device with active timeout 60 sec (see the v5 version JunOS config example below).
 ```
 forwarding-options {
     sampling {
@@ -29,44 +30,36 @@ forwarding-options {
     }
 }
 ```
-2. Install flow-tools on a server.
+2. Install nfdump on a server and configure it to rotate files every minute (see options example below)
 ```
-apt-get install flow-tools
+options='-z -t 60 -w -D -T all -l /var/db/flows/ -I any -S 1 -P /var/run/nfcapd.allflows.pid -p 9999 -b 10.0.0.10 -e 10G'
 ```
-or
-```
-cd /usr/ports/net-mgmt/flow-tools
-make install clean
-```
-And configure it to start with parameter -n (rotations) equals 1439 (the number of times flow-capture will create a new
-file per day. That is, every minute)
-Example of FreeBSD rc.conf:
-```
-flow_capture_enable="YES"
-flow_capture_localip="10.0.0.10" 
-flow_capture_remoteip="10.0.0.1" 
-flow_capture_port="9999" 
-flow_capture_datadir="/var/db/flows" 
-flow_capture_flags="-z0 -n1439 -N3 -E10G -e0 -S1"
-```
-Use 'man flow-capture' to read more about it. 
+
 ### Installation
 Configure some settings in the 'config.ini' file.
-1. Specify the location of the binary and NetFlow statistics files.
+1. Check the log options
+```
+[SYSTEM]
+LogDir = /var/log/
+# log file size in bytes
+LogFileSize = 50000
+```
+Create the log file 'LogDir'/ddos-detect.log and be sure it's writable by the user that’s running the DDoS-detect.
+2. Specify the location of the binary and NetFlow statistics files.
     ```
     [FILES]
-    FlowToolsBinDir = /usr/local/bin/
+    NfdumpBinDir = /usr/local/bin/
     SysBinDir = /usr/bin/
     FlowsDir = /var/db/flows/
     ```
-2. Configure email settings.
+3. Configure email settings.
     ```
     [EMAIL]
     SMTPServer = localhost
     MailFrom = mail@example.com
     MailTo = mail@example.com
     ```   
-3. DDoS-detect uses four flow-report profiles to detect abnormal traffic (the profiles are described in a reports.cfg file by default). Configure 'threshold's for this profiles based on your traffic activity and network device sampling options or left them default. You can add/remove profiles and configure options for them in the 'REPORTS' section config.ini file.
+4. DDoS-detect uses four report profiles to detect abnormal traffic. Configure 'threshold's for this profiles based on your traffic activity and network device sampling options or left them default. You can change set of the current working profiles and configure options for them in the 'REPORTS' section config.ini file.
     ```
     [REPORTS]
     sdport_flows
@@ -77,41 +70,34 @@ Configure some settings in the 'config.ini' file.
     [sdport_flows]
     threshold = 300
     key_field = 4
-    filter = white-list
     
     [dport_packets]
     threshold = 3000
     key_field = 3
-    filter = white-list
     
     [flows]
     threshold = 1500
     key_field = 2
-    filter = white-list
     
     [packets]
     threshold = 5000
     key_field = 2
-    filter = white-list
     ```
-- 'key_field' is a report field index number to which the threshold applies (you don't have to change it for predefined profiles).
-- 'filter' is a name of a filter described in filters.cfg file. It is used for the pre-filter flow statistic before the flow-report profile is applied. By default DDoS-detect uses 'white-list' filter for the all reports. You can add deny terms (ip or net in a format X.X.X.X/XX) to this filter to bypass DDoS-detection for them.
-    ```
-    filter-primitive white-list-ip
-      type ip-address-prefix
-      deny 8.8.8.8
-      deny 64.233.160.0/19
-      default permit
-    
-    filter-definition white-list
-      match ip-destination-address white-list-ip
-      match ip-source-address white-list-ip
-    ```
-You can create your own reports and filters. You can change the filter for each report individually.
-Use 'man flow-nfilter' and 'man flow-report' to read more about it. 
+- 'key_field' is a report field index number to which the threshold applies (you don't have to change it).
+5. Check the IP WhiteList ACL filename
+```
+[FILES]
+# White List ACL
+IpWhiteListFile = ip-white-list.txt
+```
+And add to the file IP addresses you want exclude from DDoS-detection (or leave them blank)
+```
+# Add local ip/net to exclude it from checking on DDoS
+127.0.0.1
+127.0.0.0/8
+```
 
-
-After that put script to a cron to execute it every minute
+6. After that put script to a cron to execute it every minute. 
 
 
 ## Authors
