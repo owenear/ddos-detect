@@ -91,7 +91,7 @@ key_field = 2
 # White List ACL
 IpWhiteListFile = ip-white-list.txt
 ```
-And add to the file IP addresses you want exclude from DDoS-detection (or leave them blank)
+And add to the file IP addresses you want to exclude from DDoS-detection (or leave file blank)
 ```
 # Add local ip/net to exclude it from checking on DDoS
 127.0.0.1
